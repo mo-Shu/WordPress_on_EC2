@@ -1,0 +1,20 @@
+---
+- name: Yum update
+  yum:
+    name: '*'
+    state: latest
+  become: yes
+
+- name: install packages
+  yum: 
+    name: "{{ packages }}" 
+    state: present
+  vars:
+    packages:
+    - mysql
+  become: yes
+
+- name: change timezone
+  timezone:
+    name: Asia/Tokyo
+  become: yes

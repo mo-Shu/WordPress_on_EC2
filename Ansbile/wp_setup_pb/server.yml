@@ -1,0 +1,9 @@
+- name: set up for wp
+  hosts: all # 実行対対象？意味がない？
+  # become: true
+  become_method: sudo
+  roles:
+    - wp_01_common
+    - wp_02_SharedDocRootonEFS
+    - wp_03_php_wp
+    - wp_04_ecacheclusterclient

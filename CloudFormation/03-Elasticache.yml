@@ -1,0 +1,66 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  Prefix:
+    Type: String
+    Default: cfn-wordpress
+
+Resources: 
+# ------------------------------------------------------------#
+# ElastiCache
+# ------------------------------------------------------------# 
+# # SG Create
+#   ElastiCacheRedissecGroup:
+#     Type: AWS::EC2::SecurityGroup
+#     Properties:
+#       GroupName: !Sub ${Prefix}-elasticache-sg
+#       GroupDescription: !Sub ${Prefix}-elasticache-redis-sg #required!
+#       VpcId: !Ref VPC
+#       SecurityGroupIngress:
+#         - IpProtocol: tcp
+#           FromPort: 6379
+#           ToPort: 6379
+#           SourceSecurityGroupId: !ImportValue EC2secGroup
+ 
+# SG Create
+  ElastiCacheMemcsecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${Prefix}-elasticache-Memcached-sg
+      GroupDescription: !Sub ${Prefix}-elasticache-Memcached-sg #required!
+      VpcId: !ImportValue VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 11211
+          ToPort: 11211
+          SourceSecurityGroupId: !ImportValue EC2secGroup
+
+# elasticache subnetgroup
+  SubnetGroup:
+    Type: AWS::ElastiCache::SubnetGroup
+    Properties:
+      Description: Cache Subnet Group
+      SubnetIds:
+        - !ImportValue PrivateSubnet1a
+        - !ImportValue PrivateSubnet1c
+
+# elasticache cluster create
+  ECacheMemd:
+    Type: 'AWS::ElastiCache::CacheCluster'
+    Properties:
+      AutoMinorVersionUpgrade: false
+      # AZMode: cross-az
+      CacheNodeType: cache.t2.micro
+      CacheParameterGroupName: default.memcached1.6 # !Ref ECacheMemdPG
+      CacheSubnetGroupName: !Ref SubnetGroup
+      ClusterName: memcached-cluster
+      Engine: memcached
+      EngineVersion: 1.6.17 # 1.4.34
+      NumCacheNodes: 2
+      Port: 11211
+      # PreferredAvailabilityZones:
+      #   - ap-northeast-1a
+        # - ap-northeast-1c
+      PreferredMaintenanceWindow: 'sun:17:00-sun:20:00'
+      VpcSecurityGroupIds:
+        - !Ref ElastiCacheMemcsecGroup

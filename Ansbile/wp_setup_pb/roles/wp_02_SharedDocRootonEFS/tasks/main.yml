@@ -1,0 +1,40 @@
+---
+- name: install packages
+  yum: 
+    name: "{{ packages }}" 
+    state: present
+  vars:
+    packages:
+    - httpd   
+    - amazon-efs-utils
+  become: yes
+
+- name: enable httpd
+  systemd:
+    name: httpd
+    state: started
+    enabled: yes
+  become: yes
+
+- name: mount efs volume  
+  mount:  
+    path: "/var/www/html"
+    src: "{{ EFS_ID }}:/"  
+    fstype: "efs"  
+    opts: "tls"  
+    state: mounted  
+  become: yes
+
+- name: chmod 0757 /var/www/html for SFTP
+  file:
+    path: /var/www/html
+    owner: root
+    group: root
+    mode: '0757'
+
+# - name: reload httpd service
+#   systemd:
+#     name: httpd
+#     state: restarted
+#     daemon_reload: yes
+#   become: yes

@@ -1,0 +1,265 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:  
+  Prefix:
+    Type: String
+    Default: cfn-wordpress
+
+  Domain:
+    Type: String
+  
+  CertificateArnforCloudFront:
+    Type: String
+    
+  WAFWebACLArn:
+    Type: String
+ 
+Resources: 
+# # ------------------------------------------------------------#
+# #  CloudFront, S3 
+# # ------------------------------------------------------------#
+  S3BucketForWPContents: 
+    Type: AWS::S3::Bucket 
+    Properties: 
+      BucketName: wordpress-contents-engineed-komoto
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+
+  S3AccessPolicies: 
+    Type: AWS::IAM::Policy 
+    Properties: 
+      PolicyName: s3access 
+      PolicyDocument: 
+        Version: '2012-10-17' 
+        Statement: 
+        - Effect: Allow 
+          Action:  
+            - "s3:GetBucketLocation"
+            - "s3:GetBucketPublicAccessBlock"
+            - "s3:ListBucket"
+          # Resource: "arn:aws:s3:::" 
+          Resource: !Join
+            - ''
+            - - 'arn:aws:s3:::'
+              - !Ref S3BucketForWPContents
+        - Effect: Allow 
+          Action:
+            - "s3:GetObject"
+            - "s3:PutObject"
+            - "s3:DeleteObject"
+            - "s3:PutObjectAcl" 
+          Resource: !Join
+            - '' 
+            - - 'arn:aws:s3:::' 
+              - !Ref S3BucketForWPContents
+              - '/*'
+      Roles: 
+      - !ImportValue InstanceRole
+
+  OAC: 
+    Type: AWS::CloudFront::OriginAccessControl 
+    Properties:  
+      OriginAccessControlConfig:
+        Name: WP-OAC 
+        OriginAccessControlOriginType: s3 
+        SigningBehavior: always 
+        SigningProtocol: sigv4 
+
+  CachePolicy:
+    Type: AWS::CloudFront::CachePolicy
+    Properties: 
+      CachePolicyConfig: 
+          Comment: String
+          DefaultTTL: 3600
+          MaxTTL: 172800
+          MinTTL: 1
+          Name: alb-chache
+          ParametersInCacheKeyAndForwardedToOrigin: 
+              CookiesConfig: 
+                  CookieBehavior: whitelist
+                  Cookies: 
+                    - 'wordpress_logged_in*'
+                    - 'wp-settings*'
+              EnableAcceptEncodingBrotli: true
+              EnableAcceptEncodingGzip: true
+              HeadersConfig: 
+                  HeaderBehavior: whitelist
+                  Headers: 
+                    - Authorization
+                    - Host
+                    - CloudFront-Forwarded-Proto
+              QueryStringsConfig: 
+                  QueryStringBehavior: 
+                    all
+                    
+  Distribution2: 
+    Type: AWS::CloudFront::Distribution
+    DependsOn: CachePolicy  
+    Properties: 
+      DistributionConfig:
+        Aliases:
+          - !Sub ${Domain}
+          - !Sub photo.${Domain}
+        CacheBehaviors:
+          # contents-chache
+          - AllowedMethods: 
+              - GET 
+              - HEAD
+            CachedMethods: 
+              - GET 
+              - HEAD
+            CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # Managed-CachingOptimized
+            Compress: true
+            PathPattern: /wp-content/uploads/aft-mig/* #not chache contents uploaded before migration to aws
+            TargetOriginId: !Ref S3BucketForWPContents
+            ViewerProtocolPolicy: redirect-to-https
+          # wpadmin-chachedisabled
+          - AllowedMethods: 
+              - GET 
+              - HEAD
+              - DELETE
+              - POST
+              - OPTIONS
+              - PUT
+              - PATCH
+            CachedMethods:
+              - GET 
+              - HEAD
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad # Managed-CachingDisabled
+            Compress: true
+            OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3 # Managed-AllViewer
+            PathPattern: /wp-admin/*
+            TargetOriginId: !Sub alb.${Domain} # !ImportValue ALBDNS
+            ViewerProtocolPolicy: redirect-to-https
+          # phpfile-chachedisabled
+          - AllowedMethods: 
+              - GET 
+              - HEAD
+              - DELETE
+              - POST
+              - OPTIONS
+              - PUT
+              - PATCH
+            CachedMethods: 
+              - GET 
+              - HEAD
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad # Managed-CachingDisabled
+            Compress: true
+            OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3 # Managed-AllViewer
+            PathPattern: '*.php'
+            TargetOriginId: !Sub alb.${Domain} # !ImportValue ALBDNS
+            ViewerProtocolPolicy: redirect-to-https
+          # wp-json-chachedisabled
+          - AllowedMethods: 
+              - GET 
+              - HEAD
+              - DELETE
+              - POST
+              - OPTIONS
+              - PUT
+              - PATCH
+            CachedMethods: 
+              - GET 
+              - HEAD
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad # Managed-CachingDisabled
+            Compress: true
+            OriginRequestPolicyId: 216adef6-5c7f-47e4-b989-5492eafa07d3 # Managed-AllViewer
+            PathPattern: /wp-json/*
+            TargetOriginId: !Sub alb.${Domain} # !ImportValue ALBDNS
+            ViewerProtocolPolicy: redirect-to-https
+        DefaultCacheBehavior: 
+          AllowedMethods: 
+            - GET
+            - HEAD
+            - DELETE
+            - POST
+            - OPTIONS
+            - PUT
+            - PATCH
+          CachedMethods: 
+            - GET 
+            - HEAD
+          CachePolicyId: !Ref CachePolicy
+          Compress: true 
+          TargetOriginId: !Sub alb.${Domain} # !ImportValue ALBDNS 
+          ViewerProtocolPolicy: redirect-to-https
+        DefaultRootObject: "" 
+        Enabled: true
+        Origins: 
+          - DomainName: !GetAtt S3BucketForWPContents.RegionalDomainName
+            Id: !Ref S3BucketForWPContents
+            OriginAccessControlId: !GetAtt OAC.Id 
+            S3OriginConfig: 
+              OriginAccessIdentity: "" 
+            #CustomOriginConfig: 
+          - CustomOriginConfig:
+              HTTPPort: 80
+              HTTPSPort: 443
+              # OriginKeepaliveTimeout: Integer
+              OriginProtocolPolicy: https-only
+              # OriginReadTimeout: Integer
+              OriginSSLProtocols: 
+                - TLSv1
+            OriginCustomHeaders: 
+              - HeaderName: X-CloudFront-Name
+                HeaderValue: HOGE
+            DomainName: !Sub alb.${Domain} # !ImportValue ALBDNS
+            Id: !Sub alb.${Domain} # !ImportValue ALBDNS
+        PriceClass: PriceClass_All
+        ViewerCertificate: 
+            AcmCertificateArn: !Sub ${CertificateArnforCloudFront}
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+        WebACLId: !Sub ${WAFWebACLArn} # WAFArn!!
+
+  BucketPolicy: 
+    Type: AWS::S3::BucketPolicy 
+    Properties: 
+      Bucket: !Ref S3BucketForWPContents
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement: 
+          Action: 
+            - s3:GetObject 
+          Effect: Allow 
+          Principal:  
+            Service:  
+              - cloudfront.amazonaws.com 
+          Resource: !Join 
+            - ''  
+            - - 'arn:aws:s3:::'  
+              - !Ref S3BucketForWPContents 
+              - '/*'
+          Condition:  
+            StringEquals: 
+              AWS:SourceArn: !Join
+                - ''
+                - - !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/"
+                  - !Ref Distribution2
+  
+  # DNSRecord
+  route53RS:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      Name: !Sub ${Domain}
+      Type: A
+      HostedZoneId: Z09535603JRUZUIZU287X # !ImportValue shuji-learn-HostedZoneId
+      # Alias Record
+      AliasTarget:
+        DNSName: !GetAtt Distribution2.DomainName #!GetAtt ALB.DNSName
+        HostedZoneId: Z2FDTNDATAQYW2 # hostedzoneid for cloudfront  #!GetAtt ALB.CanonicalHostedZoneID
+  
+  subroute53RS:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      Name: !Sub photo.${Domain}
+      Type: A
+      HostedZoneId: Z09535603JRUZUIZU287X #!ImportValue shuji-learn-HostedZoneId
+      AliasTarget:
+        DNSName: !GetAtt Distribution2.DomainName #!GetAtt ALB.DNSName
+        HostedZoneId: Z2FDTNDATAQYW2 # hostedzoneid for cloudfront  #!GetAtt ALB.CanonicalHostedZoneID
+
+

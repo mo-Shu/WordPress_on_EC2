@@ -1,0 +1,761 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:  
+  Prefix:
+    Type: String
+
+  Domain:
+    Type: String
+  
+  CertificateArnforALB:
+    Type: String
+    
+  MaxInstancesinASG:
+    Type: Number
+    Default: 4
+   
+  HostedZoneId: 
+    Type: String
+  
+  SshPublicKeysforSFTP: 
+    Type: String
+
+Resources:
+# ------------------------------------------------------------#
+#  Network
+# ------------------------------------------------------------#
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${Prefix}-vpc
+        - Key: aws-exam-resource
+          Value: true
+
+# InternetGateway Create
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub ${Prefix}-igw
+  AttachGateway:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref VPC
+      InternetGatewayId: !Ref InternetGateway
+
+# -----------------------------------------------------#
+#  Subnet
+# -----------------------------------------------------#          
+# Public Subnet1a Create
+  PublicSubnet1a:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: ap-northeast-1a
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.10.0/24
+      Tags:
+        - Key: Name
+          Value: !Sub ${Prefix}-public-subnet-1a
+
+# Public Subnet1c Create
+  PublicSubnet1c:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: ap-northeast-1c
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.11.0/24
+      Tags:
+        - Key: Name
+          Value: !Sub ${Prefix}-public-subnet-1c
+          
+# EC2 Private Subnet1a Create
+  PrivateSubnet1aEC2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: ap-northeast-1a
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.20.0/24
+      Tags:
+        - Key: Name
+          Value: !Sub ${Prefix}-subnet-1a-ec2
+
+# Private Subnet1c Create
+  PrivateSubnet1cEC2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: ap-northeast-1c
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.21.0/24
+      Tags:
+        - Key: Name
+          Value: !Sub ${Prefix}-private-subnet-1c-ec2
+
+# Private Subnet1a Create
+  PrivateSubnet1a:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: ap-northeast-1a
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.22.0/24
+      Tags:
+        - Key: Name
+          Value: !Sub ${Prefix}-private-subnet-1a
+
+# Private Subnet1c Create
+  PrivateSubnet1c:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: ap-northeast-1c
+      VpcId: !Ref VPC
+      CidrBlock: 10.0.23.0/24
+      Tags:
+        - Key: Name
+          Value: !Sub ${Prefix}-private-subnet-1c
+
+# ------------------------------------------------------------#
+#  RouteTable
+# ------------------------------------------------------------#          
+# Public RouteTable1a Create
+  PublicRouteTable1a:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${Prefix}-public1a-route
+
+# Public RouteTable1c Create
+  PublicRouteTable1c:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${Prefix}-public1c-route
+
+  PrivateRouteTable1:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${Prefix}-private1aEC2-route
+      
+  PrivateRouteTable2:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${Prefix}-private1cEC2-route
+
+# ------------------------------------------------------------#
+# RouteTable Associate
+# ------------------------------------------------------------# 
+# PublicRouteTable Associate PublicSubnet1a
+  PublicSubnet1aRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1a
+      RouteTableId: !Ref PublicRouteTable1a
+
+# PublicRouteTable Associate PublicSubnet1c
+  PublicSubnet1cRouteTableAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1c
+      RouteTableId: !Ref PublicRouteTable1c
+
+  PrivateSubnetRouteTableAssociation1:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1aEC2
+      RouteTableId: !Ref PrivateRouteTable1
+      
+  PrivateSubnetRouteTableAssociation2:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1cEC2
+      RouteTableId: !Ref PrivateRouteTable1
+
+# ------------------------------------------------------------#
+# Routing
+# ------------------------------------------------------------# 
+# PublicRoute1a Create
+  PublicRoute1a:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable1a
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+# PublicRoute1c Create
+  PublicRoute1c:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable1c
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+# ------------------------------------------------------------#
+# EC2 ASG
+# ------------------------------------------------------------# 
+# SG Create
+  EC2secGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${Prefix}-web
+      GroupDescription: !Sub ${Prefix}-web #required!
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref ALBsecGroup
+
+  LaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateData:
+        IamInstanceProfile:
+          Arn: !GetAtt InstanceProfile.Arn
+        ImageId: ami-08928044842b396f0
+        InstanceType: t3.micro
+        SecurityGroupIds: 
+          - !Ref EC2secGroup
+      LaunchTemplateName: "wordpress-LaunchTemplate"
+
+  AutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: !Sub ${Prefix}-AutoScalingGroup
+      DesiredCapacity: 2
+      LaunchTemplate:
+        LaunchTemplateId: !Ref LaunchTemplate
+        Version: !GetAtt LaunchTemplate.LatestVersionNumber
+      MaxSize: !Ref MaxInstancesinASG
+      MinSize: 2
+      MetricsCollection: 
+        - Granularity: 1Minute
+      VPCZoneIdentifier:
+        - !Ref PrivateSubnet1aEC2
+        - !Ref PrivateSubnet1cEC2
+      Tags: 
+        - Key: webserver
+          Value: true
+          PropagateAtLaunch: true 
+      TargetGroupARNs:
+        - !Ref ALBTarget
+
+  ScalingPolicy:
+    Type: AWS::AutoScaling::ScalingPolicy
+    Properties:
+      AutoScalingGroupName: !Ref AutoScalingGroup
+      EstimatedInstanceWarmup: 300
+      PolicyType: TargetTrackingScaling
+      TargetTrackingConfiguration:
+        PredefinedMetricSpecification:
+          PredefinedMetricType: ASGAverageCPUUtilization
+        TargetValue: 50
+
+# ------------------------------------------------------------#
+#  RDS MySQL
+# ------------------------------------------------------------#
+# DBSG Create
+  RDSsecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${Prefix}-db
+      GroupDescription: !Sub ${Prefix}-db
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref EC2secGroup
+
+# DBSubnetGroup Create
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupName: !Sub ${Prefix}-subnet-group
+      DBSubnetGroupDescription: !Sub ${Prefix}-subnet-group
+      SubnetIds:
+        - !Ref PrivateSubnet1a
+        - !Ref PrivateSubnet1c
+
+# DBParameterGroup Create
+  DBParameterGroup:
+    Type: AWS::RDS::DBParameterGroup
+    Properties:
+      Description: !Sub ${Prefix}-db-PG
+      Family: MySQL8.0
+
+# OptionGroup Create
+  SQLOptionGroup:
+    Type: AWS::RDS::OptionGroup
+    Properties: 
+      EngineName: mysql
+      MajorEngineVersion: 8.0
+      OptionGroupDescription: !Sub ${Prefix}-db-OG
+
+# Aurora
+  DBCluster:
+    Type: AWS::RDS::DBCluster
+    Properties:
+      DatabaseName: wordpressdb # in aurora, create database
+      DBClusterIdentifier: !Sub ${Prefix}-aurora-db
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      Engine: aurora-mysql
+      EngineVersion: 5.7.mysql_aurora.2.11.2
+      ManageMasterUserPassword: true
+      MasterUsername: root # cannot use "-".
+      # MasterUserPassword: Password-rds # cannot use "/@'"
+      StorageEncrypted: true
+      VpcSecurityGroupIds:
+        - !Ref RDSsecGroup
+
+  DBInstance1:
+    Type: AWS::RDS::DBInstance
+    Properties:
+      DBClusterIdentifier: !Ref DBCluster
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      DBInstanceIdentifier: wordpress-DBInstance1
+      DBInstanceClass: db.t3.small
+      Engine: aurora-mysql
+      AvailabilityZone: ap-northeast-1a
+      PubliclyAccessible: false
+      
+  # DBInstance2:
+  #   Type: AWS::RDS::DBInstance
+  #   Properties:
+  #     DBClusterIdentifier: !Ref DBCluster
+  #     DBSubnetGroupName: !Ref DBSubnetGroup
+  #     DBInstanceIdentifier: wordpress-DBInstance2
+  #     DBInstanceClass: db.t3.small
+  #     Engine: aurora-mysql
+  #     AvailabilityZone: ap-northeast-1c
+  #     PubliclyAccessible: false
+
+  # DBInstance3:
+  #   Type: AWS::RDS::DBInstance
+  #   Properties:
+  #     DBClusterIdentifier: !Ref DBCluster
+  #     DBSubnetGroupName: !Ref DBSubnetGroup
+  #     DBInstanceIdentifier: wordpress-DBInstance3
+  #     DBInstanceClass: db.t3.small
+  #     Engine: aurora-mysql
+  #     AvailabilityZone: ap-northeast-1c
+  #     PubliclyAccessible: false
+
+# ------------------------------------------------------------#
+# EFS
+# ------------------------------------------------------------# 
+# SG Create
+  EFSsecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${Prefix}-efs
+      GroupDescription: !Sub ${Prefix}-efs #required!
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 2049
+          ToPort: 2049
+          SourceSecurityGroupId: !Ref EC2secGroup
+
+  EFS:
+    Type: AWS::EFS::FileSystem
+    Properties:
+      Encrypted: true
+      PerformanceMode: generalPurpose
+      ThroughputMode: bursting
+      
+  MountTarget1:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref EFS
+      SubnetId: !Ref PrivateSubnet1aEC2
+      SecurityGroups:
+        - !Ref EFSsecGroup
+        
+  MountTarget2:
+    Type: AWS::EFS::MountTarget
+    Properties:
+      FileSystemId: !Ref EFS
+      SubnetId: !Ref PrivateSubnet1cEC2
+      SecurityGroups:
+        - !Ref EFSsecGroup
+  
+# ------------------------------------------------------------#
+#  ALB 
+# ------------------------------------------------------------#
+# ALBsecGroup Create
+  ALBsecGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: !Sub ${Prefix}-alb
+      GroupDescription: !Sub ${Prefix}-alb
+      VpcId: !Ref VPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0 # cloudfront
+
+# ALBTarget Create (with ELBV2)
+  ALBTarget:
+    Type: 'AWS::ElasticLoadBalancingV2::TargetGroup'
+    Properties:
+      HealthCheckIntervalSeconds: 10
+      HealthCheckPath: /
+      HealthCheckPort: traffic-port
+      HealthCheckProtocol: HTTP
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      Matcher:
+        HttpCode: 200
+      Name: !Sub ${Prefix}-web-tg
+      Port: 80
+      Protocol: HTTP
+      UnhealthyThresholdCount: 2
+      VpcId: !Ref VPC
+      TargetGroupAttributes:
+      - Key: stickiness.enabled
+        Value: true
+
+  ALB:
+    Type: 'AWS::ElasticLoadBalancingV2::LoadBalancer'
+    Properties:
+      # settings-for-access-log
+      LoadBalancerAttributes: 
+        - Key: access_logs.s3.enabled
+          Value: true
+        - Key: access_logs.s3.bucket
+          Value: !Ref S3BucketForALBAccessLog
+      Name: !Sub ${Prefix}-alb
+      Scheme: internet-facing
+      SecurityGroups:
+        - !Ref ALBsecGroup
+      Subnets:
+        - !Ref PublicSubnet1a
+        - !Ref PublicSubnet1c
+    
+  # alb-access-log
+  S3BucketForALBAccessLog: 
+    Type: AWS::S3::Bucket 
+    Properties: 
+      BucketName: !Sub alb-access-log-${Prefix}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+
+  BucketPolicyForALBAccessLog: 
+    Type: AWS::S3::BucketPolicy 
+    Properties: 
+      Bucket: !Ref S3BucketForALBAccessLog
+      PolicyDocument: 
+        Version: "2012-10-17"
+        Statement: 
+          Action: 
+            - s3:PutObject 
+          Effect: Allow 
+          Principal:  
+            AWS: 
+              - "arn:aws:iam::582318560864:root"
+          Resource: !Join 
+            - ''  
+            - - 'arn:aws:s3:::'  
+              - !Ref S3BucketForALBAccessLog
+              - '/*'
+  
+  # waf-log
+  S3BucketForWAFLog: 
+    Type: AWS::S3::Bucket 
+    Properties: 
+      BucketName: !Sub aws-waf-logs-${Prefix}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+  
+  S3BucketForAthenaQuery:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub athena-query-results-${Prefix}
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: True
+        BlockPublicPolicy: True
+        IgnorePublicAcls: True
+        RestrictPublicBuckets: True
+
+  # ALBListener:
+  #   Type: 'AWS::ElasticLoadBalancingV2::Listener'
+  #   Properties:
+  #     DefaultActions:
+  #       - TargetGroupArn: !Ref ALBTarget
+  #         Type: forward
+  #     LoadBalancerArn: !Ref ALB
+  #     Port: '80'
+  #     Protocol: HTTP
+
+  ALBListenerHTTPS:
+    Type: 'AWS::ElasticLoadBalancingV2::Listener'
+    Properties:
+      Certificates:
+        - CertificateArn: !Sub ${CertificateArnforALB}
+      DefaultActions:
+        - FixedResponseConfig:
+            ContentType: text/plain
+            MessageBody: This is an unexpected request.
+            StatusCode: '403'
+          Type: fixed-response
+      LoadBalancerArn: !Ref ALB
+      Port: '443'
+      Protocol: HTTPS
+  
+  Rule1OfALBListenerHTTPS:
+    Type: AWS::ElasticLoadBalancingV2::ListenerRule
+    Properties: 
+      Actions: 
+        - TargetGroupArn: !Ref ALBTarget
+          Type: forward
+      Conditions: 
+        - Field: http-header
+          HttpHeaderConfig: 
+            HttpHeaderName: X-CloudFront-Name
+            Values: 
+              - HOGE
+      ListenerArn: !Ref ALBListenerHTTPS
+      Priority: 1
+
+# DNSRecord
+  ALBroute53RS:
+    Type: AWS::Route53::RecordSet
+    Properties:
+      Name: !Sub alb.${Domain}
+      Type: A
+      HostedZoneId: !Sub ${HostedZoneId} #!ImportValue shuji-learn-HostedZoneId
+      # Alias Record
+      AliasTarget:
+        DNSName: !GetAtt ALB.DNSName
+        HostedZoneId: !GetAtt ALB.CanonicalHostedZoneID
+
+# ------------------------------------------------------------#
+#  SSM Session Manager
+# ------------------------------------------------------------# 
+  S3Endpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      RouteTableIds:
+        - !Ref PrivateRouteTable1
+        - !Ref PrivateRouteTable2
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.s3"
+      VpcId: !Ref VPC
+
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref InstanceRole
+  
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Action: sts:AssumeRole
+            Principal:
+              Service:
+                - ec2.amazonaws.com
+                - ssm.amazonaws.com
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonEC2RoleforSSM
+
+  EIP1:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  NATGateway1:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt EIP1.AllocationId
+      SubnetId: !Ref PublicSubnet1a
+
+  AddRouteNAT1:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable1
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway1
+
+  EIP2:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: vpc
+
+  NATGateway2:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt EIP2.AllocationId
+      SubnetId: !Ref PublicSubnet1c
+
+  AddRouteNAT2:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable2
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NATGateway2
+
+# ------------------------------------------------------------#
+# TransferFamily
+# ------------------------------------------------------------#
+  SftpServer:
+    Type: AWS::Transfer::Server
+    Properties: 
+      Domain: EFS
+      EndpointType: PUBLIC
+      IdentityProviderType: SERVICE_MANAGED
+      Protocols: 
+        - SFTP
+      Tags:
+        - Key: Name
+          Value: !Sub ${Prefix}-SftpSever
+  
+  SftpRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "transfer.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      Policies:
+        - PolicyName: "RootFileSystemAccess"
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Sid: "RootFileSystemAccess"
+                Effect: Allow
+                Action:
+                  - "elasticfilesystem:ClientRootAccess"
+                  - "elasticfilesystem:ClientMount"
+                  - "elasticfilesystem:ClientWrite"
+                Resource: !GetAtt EFS.Arn
+
+  SftpUser:
+    Type: AWS::Transfer::User
+    Properties: 
+      HomeDirectory: !Join ["", ["/", !Ref EFS]] 
+      HomeDirectoryType: PATH
+      PosixProfile: 
+          Gid: 9999
+          Uid: 9999
+      Role: !GetAtt SftpRole.Arn
+      ServerId: !GetAtt SftpServer.ServerId
+      SshPublicKeys: 
+        - !Sub ${SshPublicKeysforSFTP}
+      Tags:
+        - Key: Name
+          Value: !Sub ${Prefix}-SftpUser
+      UserName: SftpUser
+
+# ------------------------------------------------------------#
+# Outputs
+# ------------------------------------------------------------#
+Outputs:
+  VPC: 
+    Value: !Ref VPC
+    Export: 
+      Name: VPC
+
+  PublicSubnet1a: 
+    Value: !Ref PublicSubnet1a
+    Export: 
+      Name: PublicSubnet1a
+
+  PrivateSubnet1a: 
+    Value: !Ref PrivateSubnet1a
+    Export: 
+      Name: PrivateSubnet1a
+
+  PrivateSubnet1c: 
+    Value: !Ref PrivateSubnet1c
+    Export: 
+      Name: PrivateSubnet1c
+
+  PrivateRouteTable1:
+    Value: !Ref PrivateRouteTable1
+    Export: 
+      Name: PrivateRouteTable1
+  
+  EFS:
+    Value: !Ref EFS
+    Export: 
+      Name: EFS
+  
+  EFSArn:
+    Value: !GetAtt EFS.Arn
+    Export: 
+      Name: EFSArn
+
+  InstanceRole:
+    Value: !Ref InstanceRole
+    Export: 
+      Name: InstanceRole
+  
+  EC2secGroup:
+    Value: !Ref EC2secGroup
+    Export: 
+      Name: EC2secGroup
+  
+  AutoScalingGroup:
+    Value: !Ref AutoScalingGroup
+    Export: 
+      Name: AutoScalingGroup
+  
+  MaxInstancesinASG:
+    Value: !Ref MaxInstancesinASG
+    Export:
+      Name: MaxInstancesinASG
+  
+  ALB:
+    Value: !Ref ALB
+    Export: 
+      Name: ALB
+      
+  ALBDNS:
+    Value: !GetAtt ALB.DNSName
+    Export: 
+      Name: ALBDNS
+
+  DBCluster:
+    Value: !Ref DBCluster
+    Export: 
+      Name: DBCluster
+  
+  S3BucketForWAFLogArn:
+    Value: !GetAtt S3BucketForWAFLog.Arn
+    Export: 
+      Name: S3BucketForWAFLogArn

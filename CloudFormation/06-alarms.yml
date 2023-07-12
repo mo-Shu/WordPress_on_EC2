@@ -1,0 +1,184 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  Prefix:
+    Type: String
+    Default: cfn-wordpress
+  
+  EMailforSNS:
+    Type: String
+  
+  MaxInstancesinASG:
+    Type: Number
+    Default: 4
+  
+  AlarmVersion:
+    Type: String
+    Default: V1_0
+
+Resources: 
+# ------------------------------------------------------------#
+#  SNS
+# ------------------------------------------------------------#
+  SNSforAlarm:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub CloudWatchAlarm-for-WP-${AlarmVersion}
+      Subscription:
+        - Endpoint: !Sub ${EMailforSNS}
+          Protocol: email
+
+# ------------------------------------------------------------#
+#  Metric Alarms
+# ------------------------------------------------------------#
+#    
+  EC2CPUUtilizationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: false
+      AlarmActions:
+        - !Ref SNSforAlarm  # アラーム時のアクション
+      AlarmName: !Sub CPUAveASG-${AlarmVersion}
+      MetricName: CPUUtilization
+      Namespace: AWS/EC2
+      Statistic: Average  # 平均
+      Period: 300  # 期間[s]
+      EvaluationPeriods: 2  # 閾値超過回数
+      Threshold: 75  # 閾値
+      TreatMissingData: breaching  # 欠落データは不良
+      # OKActions:
+      #   - !Ref SNSTopicName  # 復旧時のアクション
+      ComparisonOperator: GreaterThanOrEqualToThreshold  # 閾値以上
+      Dimensions:
+        - Name: AutoScalingGroupName
+          Value: !ImportValue AutoScalingGroup
+
+# The number of EC2Instances in ASG reaches max
+  EFSConnectionsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      ActionsEnabled: true
+      AlarmActions:
+        - !Ref SNSforAlarm  # アラーム時のアクション
+      AlarmName: !Sub The number of EC2Instances in ASG reaches max (Instances mouting EFS)-${AlarmVersion}
+      MetricName: ClientConnections
+      Namespace: AWS/EFS
+      Statistic: Sum
+      Period: 60  # 期間[s]
+      EvaluationPeriods: 1  # 閾値超過回数
+      Threshold: !Sub ${MaxInstancesinASG}  # 閾値
+      TreatMissingData: missing  # データ欠落は欠落として扱う
+      # OKActions:
+      #   - !Ref SNSTopicName  # 復旧時のアクション
+      ComparisonOperator: GreaterThanOrEqualToThreshold  # 閾値以上
+      Dimensions:
+        - Name: FileSystemId
+          Value: !ImportValue EFS
+
+  RDSFreeableMemoryAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmActions:
+        - !Ref SNSforAlarm  # アラーム時のアクション
+      AlarmName: !Sub AuroraFreeableMemory-${AlarmVersion}
+      MetricName: FreeableMemory
+      Namespace: AWS/RDS
+      Statistic: Average  # 平均
+      Period: 60  # 期間[s]
+      EvaluationPeriods: 1  # 閾値超過回数
+      Threshold: 104857600  # 閾値 (100MB)
+      TreatMissingData: breaching  # 欠落データは不良
+      ComparisonOperator: LessThanOrEqualToThreshold  # 閾値以下
+      Dimensions:
+        - Name: DBClusterIdentifier
+          Value: !ImportValue DBCluster
+          
+  RDSCPUUtilizationAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmActions:
+        - !Ref SNSforAlarm  # アラーム時のアクション
+      AlarmName: !Sub AuroraCPUUtilization-${AlarmVersion}
+      MetricName: CPUUtilization
+      Namespace: AWS/RDS
+      Statistic: Average  # 平均
+      Period: 60  # 期間[s]
+      EvaluationPeriods: 1  # 閾値超過回数
+      Threshold: 90  # 閾値
+      TreatMissingData: breaching
+      ComparisonOperator: GreaterThanOrEqualToThreshold  # 閾値以上
+      Dimensions:
+        - Name: DBClusterIdentifier
+          Value: !ImportValue DBCluster
+
+  ALBHTTPCodeELB5XXCountAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmActions:
+        - !Ref SNSforAlarm  # アラーム時のアクション
+      AlarmName: !Sub ALBHTTPCodeELB5XXCount-${AlarmVersion}
+      MetricName: HTTPCode_ELB_5XX_Count
+      Namespace: AWS/ApplicationELB
+      Statistic: Sum
+      Period: 60  # 期間[s]
+      EvaluationPeriods: 5  # 閾値超過回数
+      Threshold: 10  # 閾値
+      TreatMissingData: missing
+      ComparisonOperator: GreaterThanOrEqualToThreshold  # 閾値以上
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !ImportValue ALB
+
+  TargetResponseTimeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmActions:
+        - !Ref SNSforAlarm  # アラーム時のアクション
+      AlarmName: !Sub TargetResponseTime-${AlarmVersion}
+      MetricName: TargetResponseTime
+      Namespace: AWS/ApplicationELB
+      # Statistic: Average
+      ExtendedStatistic: p90
+      Period: 300  # 期間[s]
+      EvaluationPeriods: 1  # 閾値超過回数
+      Threshold: 90  # 閾値
+      TreatMissingData: missing
+      ComparisonOperator: GreaterThanOrEqualToThreshold  # 閾値以上
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !ImportValue ALB
+  
+# ------------------------------------------------------------#
+#  Composite Alarms
+# ------------------------------------------------------------#
+  ASGMaxAlarm:
+    Type: AWS::CloudWatch::CompositeAlarm
+    Properties:
+      ActionsEnabled: true
+      AlarmName: !Sub ASGMaxAlarm-${AlarmVersion}
+      AlarmActions:
+        - !Ref SNSforAlarm
+      AlarmRule: !Join
+                 - ""
+                 - - "ALARM(\"" 
+                   - !Ref EC2CPUUtilizationAlarm
+                   - "\") AND ALARM(\""
+                   - !Ref EFSConnectionsAlarm
+                   - "\")"
+
+# ------------------------------------------------------------#
+#  Your Account Health Event Alarm 
+# ------------------------------------------------------------#
+  HealthEventsRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: HealthEventsRule
+      EventBusName: default
+      EventPattern:
+        source:
+          - aws.health
+      Name: !Sub HealthEventsRule-${AlarmVersion}
+      State: ENABLED
+      Targets:
+        - Id: !Sub HealthEventsRuleTargetSNS-${AlarmVersion}
+          Arn: !Ref SNSforAlarm

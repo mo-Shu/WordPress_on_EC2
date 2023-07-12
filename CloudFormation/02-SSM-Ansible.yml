@@ -1,0 +1,46 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  S3BucketforPlaybook:
+    Type: String
+ 
+  OutputS3BucketName:
+    Type: String
+
+Resources: 
+# ------------------------------------------------------------#
+#  SSM State Manager
+# ------------------------------------------------------------#    
+  ApplyAnsiblePlaybooksAssociation2:
+    Type: AWS::SSM::Association
+    Properties:
+      AssociationName: wordpress-apply-ansible-playbook-association1
+      MaxConcurrency: 1
+      Name: AWS-ApplyAnsiblePlaybooks
+      OutputLocation:
+        S3Location:
+          OutputS3BucketName: !Sub ${OutputS3BucketName} 
+          OutputS3KeyPrefix: "playbook-association-logs/"
+      Parameters:
+        Check:
+          - "False"
+        ExtraVariables:
+          - !Join 
+            - ""
+            - - "SSM=True EFS_ID="
+              - !ImportValue EFS
+        InstallDependencies:
+          - "True"
+        PlaybookFile:
+          - wp_setup_pb/server.yml
+        SourceInfo:
+           - !Sub '{"path":"https://${S3BucketforPlaybook}.s3.${AWS::Region}.amazonaws.com/wp_setup_pb.zip"}'
+        SourceType:
+          - S3
+        Verbose:
+          - -v
+      Targets:
+        - Key: tag:webserver
+          Values:
+            - true
+      WaitForSuccessTimeoutSeconds: 300

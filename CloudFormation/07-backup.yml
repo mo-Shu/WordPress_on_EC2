@@ -1,0 +1,57 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:
+  Prefix:
+    Type: String
+    Default: cfn-wordpress
+  
+Resources: 
+# ------------------------------------------------------------#
+# Backup
+# ------------------------------------------------------------#
+  BackupVault:
+    Type: AWS::Backup::BackupVault
+    Properties: 
+      BackupVaultName: EfsBackupVault
+
+# aws backup get-backup-plan --backup-plan-id aws/efs/73d922fb-9312-3a70-99c3-e69367f9fdad --profile ginee
+  BackupPlan:
+    Type: AWS::Backup::BackupPlan
+    Properties: 
+      BackupPlan: 
+        BackupPlanName: "EfsDailyBackupPlan"
+        BackupPlanRule: 
+          - RuleName: "EfsDailyBackupPlanRule"
+            TargetBackupVault: !Ref BackupVault
+            ScheduleExpression: !Sub "cron(0 20 ? * * *)" # jst am 5:00
+            StartWindowMinutes: 120 # 2h
+            CompletionWindowMinutes: 1440 # 1day
+            # Lifecycle:
+            #   DeleteAfterDays: !Ref DeleteAfterDays #?
+
+  AWSBackupServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Action: "sts:AssumeRole"
+          Effect: "Allow"
+          Principal:
+            Service: backup.amazonaws.com
+      Path: "/service-role/"
+      ManagedPolicyArns:
+        - "arn:aws:iam::aws:policy/service-role/AWSBackupServiceRolePolicyForBackup"
+        - "arn:aws:iam::aws:policy/service-role/AWSBackupServiceRolePolicyForRestores"
+
+  BackupSelection:
+    Type: AWS::Backup::BackupSelection
+    Properties:
+      BackupPlanId: !Ref BackupPlan
+      BackupSelection:
+        SelectionName: "Assigned_EFS"
+        IamRoleArn: !GetAtt AWSBackupServiceRole.Arn
+        Resources:
+          - !ImportValue EFSArn # !Sub "arn:aws:elasticfilesystem:${AWS::Region}:${AWS::AccountId}:file-system/${FileSystem}"
+
+

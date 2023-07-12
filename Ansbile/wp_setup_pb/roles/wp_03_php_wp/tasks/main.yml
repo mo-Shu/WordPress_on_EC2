@@ -1,0 +1,135 @@
+---
+- name: Yum update
+  yum:
+    name: '*'
+    state: latest
+  become: yes
+
+- name: Get php package list from local
+  yum:
+    disablerepo: "*"
+    list: php 
+  register: installed_pkgs
+
+- name: install php and other packages
+  block:
+    - name: enable php repository
+      shell: "amazon-linux-extras enable php8.0"
+      changed_when: False
+    - name: Install packages
+      yum:
+        name: "{{ packages }}"
+        state: present
+      vars: 
+        packages:
+        - php
+        - php-cli
+        - php-fpm
+        - php-mysqlnd
+        - php-pdo
+        - php-mbstring 
+        - php-xml 
+        - php-gd 
+        - php-devel.x86_64
+        - mysql
+        - php-opcache
+  become: yes
+  when: installed_pkgs.results | length == 0
+
+- name: add /etc/php.d/10-opcache.ini
+  template:  
+    src: 10-opcache.ini
+    dest: /etc/php.d/10-opcache.ini
+    owner: root 
+    group: root
+    mode: 0644 
+  become: yes
+
+- name: check wordpress installed with file index.php  
+  stat: 
+    path: /var/www/html/wordpress/index.php
+  register: index_php
+
+- name: check wordpress installed with file wordpress.tar.gz wp  
+  stat: 
+    path: /var/www/html/wordpress.tar.gz
+  register: wp_tar
+
+# - debug: 
+#     var: index_php
+
+- name: setup wordpress
+  block: 
+    - name: download wp
+      get_url: 
+         url: https://ja.wordpress.org/latest-ja.tar.gz
+         dest: /tmp
+      register: downloaded_wp
+    - debug: 
+        var: downloaded_wp
+    - name: Unzip WordPress  
+      unarchive:  
+        src: "{{ downloaded_wp.dest }}"
+        dest: /var/www/html  
+        remote_src: yes 
+    - name: download wp
+      template:
+        src: wordpress.tar.gz
+        dest: /tmp/wordpress.tar.gz
+        register: downloaded_wp
+    # - name: Unzip WordPress  
+    #   unarchive:  
+    #     src: /var/www/html/wordpress.tar.gz
+    #     dest: /var/www/html
+    #     remote_src: yes
+    - name: replace /etc/httpd/conf/httpd.conf
+      template:
+        src: httpd.conf 
+        dest: /etc/httpd/conf/httpd.conf
+        owner: root 
+        group: root 
+        mode: 0644
+    - name: chown -R apache:apache /var/www/html/wordpress
+      file:  
+        path: /var/www/html/wordpress
+        state: directory  
+        owner: apache  
+        group: apache  
+        recurse: yes 
+    - name: create /var/www/html/wordpress/db-config.php
+      template: 
+        src: db-config.php
+        dest: /var/www/html/wordpress/db-config.php
+        owner: apache
+        group: apache
+        mode: 0666
+    - name: chmod -R 0757 /var/www/html/wordpress for SFTP
+      file:
+        path: /var/www/html/wordpress
+        owner: apache
+        group: apache
+        mode: '0757'
+        recurse: true
+    # - name: remove wp-config.php ?
+  become: yes
+  when: 
+    - not index_php.stat.exists == true
+    - wp_tar.stat.exists == true
+
+# - name: create /var/www/html/wordpress/wp-config.php
+#   template: 
+#     src: wp-config.php
+#     dest: /var/www/html/wordpress/wp-config.php
+#     owner: apache
+#     group: apache
+#     mode: 0666
+#   become: yes
+#   when: not index_php.stat.exists
+
+- name: reload httpd service
+  systemd:
+    name: httpd
+    state: restarted
+    daemon_reload: yes
+  become: yes
+

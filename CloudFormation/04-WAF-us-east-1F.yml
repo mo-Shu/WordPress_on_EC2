@@ -1,0 +1,164 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Parameters:  
+  Prefix:
+    Type: String
+    Default: cfn-wordpress
+
+  S3BucketForWAFLogArn:
+    Type: String
+
+Resources: 
+# ------------------------------------------------------------#
+# WAF v2
+# ------------------------------------------------------------#
+  WebAcl:
+    Type: AWS::WAFv2::WebACL
+    Properties: 
+      Name: wp-waf
+      Scope: CLOUDFRONT # For CLOUDFRONT, you must create your WAFv2 resources in the US East (N. Virginia) Region, us-east-1.
+      DefaultAction:
+        Allow: {}
+      VisibilityConfig:
+        CloudWatchMetricsEnabled: true
+        SampledRequestsEnabled: true
+        MetricName: !Sub ${Prefix}-web-acl
+      Rules:
+        # -
+        #   Name: AWS-AWSManagedRulesAdminProtectionRuleSet
+        #   Priority: 0
+        #   Statement:
+        #     ManagedRuleGroupStatement:
+        #       VendorName: AWS
+        #       Name: AWSManagedRulesAdminProtectionRuleSet
+        #   OverrideAction:
+        #     None: {}
+        #   VisibilityConfig:
+        #     CloudWatchMetricsEnabled: true
+        #     SampledRequestsEnabled: true
+        #     MetricName: AWS-AWSManagedRulesAdminProtectionRuleSet
+        -
+          Name: AWS-AWSManagedRulesCommonRuleSet
+          Priority: 1
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesCommonRuleSet
+          OverrideAction:
+            None: {}
+          VisibilityConfig:
+            CloudWatchMetricsEnabled: true
+            SampledRequestsEnabled: true
+            MetricName: AWS-AWSManagedRulesCommonRuleSet
+        -
+          Name: AWS-AWSManagedRulesAmazonIpReputationList
+          Priority: 2
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesAmazonIpReputationList
+          OverrideAction:
+            None: {}
+          VisibilityConfig:
+            CloudWatchMetricsEnabled: true
+            SampledRequestsEnabled: true
+            MetricName: AWS-AWSManagedRulesAmazonIpReputationList
+        -
+          Name: AWS-AWSManagedRulesAnonymousIpList
+          Priority: 3
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesAnonymousIpList
+          OverrideAction:
+            None: {}
+          VisibilityConfig:
+            CloudWatchMetricsEnabled: true
+            SampledRequestsEnabled: true
+            MetricName: AWS-AWSManagedRulesAnonymousIpList
+        -
+          Name: AWS-AWSManagedRulesWordPressRuleSet
+          Priority: 4
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesWordPressRuleSet
+          OverrideAction:
+            None: {}
+          VisibilityConfig:
+            CloudWatchMetricsEnabled: true
+            SampledRequestsEnabled: true
+            MetricName: AWS-AWSManagedRulesWordPressRuleSet
+        # -
+        #   Name: AWS-AWSManagedRulesKnownBadInputsRuleSet
+        #   Priority: 4
+        #   Statement:
+        #     ManagedRuleGroupStatement:
+        #       VendorName: AWS
+        #       Name: AWSManagedRulesKnownBadInputsRuleSet
+        #   OverrideAction:
+        #     None: {}
+        #   VisibilityConfig:
+        #     CloudWatchMetricsEnabled: true
+        #     SampledRequestsEnabled: true
+        #     MetricName: AWS-AWSManagedRulesKnownBadInputsRuleSet
+        # -
+        #   Name: AWS-AWSManagedRulesLinuxRuleSet
+        #   Priority: 5
+        #   Statement:
+        #     ManagedRuleGroupStatement:
+        #       VendorName: AWS
+        #       Name: AWSManagedRulesLinuxRuleSet
+        #   OverrideAction:
+        #     None: {}
+        #   VisibilityConfig:
+        #     CloudWatchMetricsEnabled: true
+        #     SampledRequestsEnabled: true
+        #     MetricName: AWS-AWSManagedRulesLinuxRuleSet
+        -
+          Name: AWS-AWSManagedRulesPHPRuleSet
+          Priority: 5
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesPHPRuleSet
+          OverrideAction:
+            None: {}
+          VisibilityConfig:
+            CloudWatchMetricsEnabled: true
+            SampledRequestsEnabled: true
+            MetricName: AWS-AWSManagedRulesPHPRuleSet
+        -
+          Name: AWS-AWSManagedRulesSQLiRuleSet
+          Priority: 6
+          Statement:
+            ManagedRuleGroupStatement:
+              VendorName: AWS
+              Name: AWSManagedRulesSQLiRuleSet
+          OverrideAction:
+            None: {}
+          VisibilityConfig:
+            CloudWatchMetricsEnabled: true
+            SampledRequestsEnabled: true
+            MetricName: AWS-AWSManagedRulesSQLiRuleSet
+
+  WAFLogConfig:
+    Type: AWS::WAFv2::LoggingConfiguration
+    Properties:
+      LogDestinationConfigs:
+        - !Sub ${S3BucketForWAFLogArn}
+      ResourceArn: !GetAtt WebAcl.Arn
+
+  # WAFLogConfig:
+  #   Type: AWS::WAFv2::LoggingConfiguration
+  #   Properties:
+  #     LogDestinationConfigs:
+  #       - !GetAtt S3BucketForWaflog.Arn
+  #     ResourceArn: !GetAtt WebAcl.Arn
+
+  # WebACLAssociation:
+  #   Type: AWS::WAFv2::WebACLAssociation
+  #   Properties:
+  #     ResourceArn: !Sub ${CloudfrontArn}
+  #     WebACLArn: !GetAtt WebAcl.Arn
+  

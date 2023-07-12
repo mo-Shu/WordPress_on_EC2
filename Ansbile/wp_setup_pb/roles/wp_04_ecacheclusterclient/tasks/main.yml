@@ -1,0 +1,99 @@
+---
+- name: check module memchached with elasticache-cluser-client.so
+  shell: | 
+    /bin/bash -lc "php -m | grep memcached"
+  check_mode: no
+  failed_when: false
+  register: memcached_as_module
+ 
+- debug: 
+    var: memcached_as_module.stdout
+
+- name: configure elasticache-cluser-client.so
+  block: 
+    - name: download elasticache-cluser-client
+      get_url: 
+         url: https://elasticache-downloads.s3.amazonaws.com/ClusterClient/PHP-8.0/latest-64bit-X86-openssl1.1
+         dest: /tmp
+      register: ecache_client_gz
+    - name: Unzip elasticache-cluser-client
+      unarchive:  
+        src: "{{ ecache_client_gz.dest }}" # 230702 /tmp/AmazonElastiCacheClusterClient-PHP80-64bit-libmemcached-1.0.19-openssl1.1.tar.gz
+        dest: /tmp 
+        remote_src: yes 
+    - debug:
+        var: ecache_client_gz.dest
+    - name: copy amazon-elasticache-cluster-client.so to /modules
+      copy:
+        src: /tmp/amazon-elasticache-cluster-client.so
+        dest: /usr/lib64/php/modules/amazon-elasticache-cluster-client.so
+        owner: root
+        group: root
+        mode: 0755
+    - name: replace /etc/php.d/50-memcached.ini
+      template:  
+        src: 50-memcached.ini
+        dest: /etc/php.d/50-memcached.ini
+        owner: root 
+        group: root
+        mode: 0644
+    - name: check openssl1.1
+      shell: | 
+        /bin/bash -lc "openssl version"
+      check_mode: no
+      failed_when: false
+      register: check_openssl11
+    - debug:
+        var: check_openssl11
+    - name: configure openssl1.1
+      block:
+        - name: install packages for openssl1.1
+          yum: 
+            name: "{{ packages }}" 
+            state: present
+          vars:
+            packages:
+            - make
+            - gcc
+            - pcre-devel
+            - wget
+            - zlib-devel 
+        - name: download openssl1.1
+          get_url:
+            url: https://www.openssl.org/source/openssl-1.1.1c.tar.gz
+            dest: /tmp
+          register: openssl11
+        - name: Unzip openssl1.1
+          unarchive:  
+            src: /tmp/openssl-1.1.1c.tar.gz
+            dest: /tmp 
+            remote_src: yes 
+        - name: install and setting openssl1.1 
+          shell: | 
+            /bin/bash -lc "cd /tmp/openssl-1.1.1c"
+            /bin/bash -lc "sudo ./config"
+            /bin/bash -lc "sudo make"
+            /bin/bash -lc "sudo make install"
+          check_mode: no
+          args:
+            chdir: /tmp/openssl-1.1.1c
+      when: "'OpenSSL 1.1.1c' not in check_openssl11.stdout"
+    - name: ln -s /usr/local/lib64/libssl.so.1.1 /usr/lib64/libssl.so.1.1
+      file:
+        src: /usr/local/lib64/libssl.so.1.1
+        dest: /usr/lib64/libssl.so.1.1
+        state: link
+    - name: ln -s /usr/local/lib64/libcrypto.so.1.1 /usr/lib64/libcrypto.so.1.1
+      file:
+        src: /usr/local/lib64/libcrypto.so.1.1
+        dest: /usr/lib64/libcrypto.so.1.1
+        state: link
+  become: yes
+  when: not memcached_as_module.stdout == "memcached"
+
+- name: reload httpd service for memcached
+  systemd:
+    name: httpd
+    state: restarted
+    daemon_reload: yes
+  become: yes
