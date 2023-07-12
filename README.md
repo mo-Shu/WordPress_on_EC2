@@ -26,16 +26,16 @@
 # Aurora マスターユーザー: root
 # DB名: wordpressdb, DBユーザー: wordpress, DBパスワード: password
 
-# DBにログイン
+# DBにログイン。マスターユーザーのパスワードはSecret Managerから取得する。
 mysql -h $RDS_EP -u root -p
 
 # mysqlで実行
-CREATE USER 'wordpress'@'%' IDENTIFIED BY 'bQ6PbKZ2u9NO';
+CREATE USER 'wordpress'@'%' IDENTIFIED BY 'password';
 GRANT ALL ON wordpressdb.* TO 'wordpress'@'%';  
 FLUSH PRIVILEGES;  
 exit
 ```
-5. 管理画面アクセスしてプラグイン
+5. 管理画面にアクセスしてログイン
 6. wp-config.phpに以下を追記
 ```php: wp-config.php
 /** SSL via CloudFront **/ 
