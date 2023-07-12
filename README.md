@@ -1,7 +1,6 @@
 # WordPress on EC2 with CFn and Ansible
 ## 概要と構成図
-![Architecture](https://github.com/mo-Shu/WordPress_on_EC2/blob/main/architect_230712.png?raw=true)
-*Architecture*
+![Architecture](https://github.com/mo-Shu/WordPress_on_EC2/blob/main/architect_230712.png?raw=true =500x)
 - EC2上にWordPressを展開するフルシステムの設計に挑戦してみました。
 - 一部を除いて（構築手順参照）、ほとんどをIaCで実現。クラウドインフラのリソース構築はCloudFormation、それ以外のLinuxで操作する部分をAnsible。
 - SSM State ManagerによるAnsible Playbookの実行：少しチャレンジングな試みとして、Amazon Linux 2のAMIで起動した素の状態のEC2に対して、Ansible Playbookから設定する仕組みを作ってみました。※メリットやデメリットがわかってきたので後に整理。
