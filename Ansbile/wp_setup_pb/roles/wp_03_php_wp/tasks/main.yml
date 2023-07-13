@@ -114,7 +114,7 @@
   become: yes
   when: 
     - not index_php.stat.exists == true
-    - wp_tar.stat.exists == true
+    # - wp_tar.stat.exists == true
 
 # - name: create /var/www/html/wordpress/wp-config.php
 #   template: 
