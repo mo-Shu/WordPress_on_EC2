@@ -182,7 +182,7 @@ Resources:
     Type: AWS::EC2::SubnetRouteTableAssociation
     Properties:
       SubnetId: !Ref PrivateSubnet1cEC2
-      RouteTableId: !Ref PrivateRouteTable1
+      RouteTableId: !Ref PrivateRouteTable2
 
 # ------------------------------------------------------------#
 # Routing
@@ -298,7 +298,7 @@ Resources:
       Family: MySQL8.0
 
 # OptionGroup Create
-  SQLOptionGroup:
+  OptionGroup:
     Type: AWS::RDS::OptionGroup
     Properties: 
       EngineName: mysql
@@ -313,7 +313,7 @@ Resources:
       DBClusterIdentifier: !Sub ${Prefix}-aurora-db
       DBSubnetGroupName: !Ref DBSubnetGroup
       Engine: aurora-mysql
-      EngineVersion: 5.7.mysql_aurora.2.11.2
+      EngineVersion: 8.0.mysql_aurora.3.01.0
       ManageMasterUserPassword: true
       MasterUsername: root # cannot use "-".
       # MasterUserPassword: Password-rds # cannot use "/@'"
@@ -327,7 +327,9 @@ Resources:
       DBClusterIdentifier: !Ref DBCluster
       DBSubnetGroupName: !Ref DBSubnetGroup
       DBInstanceIdentifier: wordpress-DBInstance1
-      DBInstanceClass: db.t3.small
+      DBInstanceClass: db.t3.medium
+      DBParameterGroupName: !Ref DBParameterGroup
+      OptionGroupName: !Ref OptionGroup
       Engine: aurora-mysql
       AvailabilityZone: ap-northeast-1a
       PubliclyAccessible: false
@@ -338,7 +340,9 @@ Resources:
   #     DBClusterIdentifier: !Ref DBCluster
   #     DBSubnetGroupName: !Ref DBSubnetGroup
   #     DBInstanceIdentifier: wordpress-DBInstance2
-  #     DBInstanceClass: db.t3.small
+  #     DBInstanceClass: db.t3.medium
+  #     DBParameterGroupName: !Ref DBParameterGroup
+  #     OptionGroupName: !Ref OptionGroup
   #     Engine: aurora-mysql
   #     AvailabilityZone: ap-northeast-1c
   #     PubliclyAccessible: false
@@ -349,7 +353,9 @@ Resources:
   #     DBClusterIdentifier: !Ref DBCluster
   #     DBSubnetGroupName: !Ref DBSubnetGroup
   #     DBInstanceIdentifier: wordpress-DBInstance3
-  #     DBInstanceClass: db.t3.small
+  #     DBInstanceClass: db.t3.medium
+  #     DBParameterGroupName: !Ref DBParameterGroup
+  #     OptionGroupName: !Ref OptionGroup
   #     Engine: aurora-mysql
   #     AvailabilityZone: ap-northeast-1c
   #     PubliclyAccessible: false
@@ -404,10 +410,6 @@ Resources:
       GroupDescription: !Sub ${Prefix}-alb
       VpcId: !Ref VPC
       SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 80
-          ToPort: 80
-          CidrIp: 0.0.0.0/0
         - IpProtocol: tcp
           FromPort: 443
           ToPort: 443
