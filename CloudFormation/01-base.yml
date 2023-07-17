@@ -295,13 +295,13 @@ Resources:
     Type: AWS::RDS::DBParameterGroup
     Properties:
       Description: !Sub ${Prefix}-db-PG
-      Family: MySQL8.0
+      Family: aurora-mysql8.0
 
 # OptionGroup Create
   OptionGroup:
     Type: AWS::RDS::OptionGroup
     Properties: 
-      EngineName: mysql
+      EngineName: aurora-mysql
       MajorEngineVersion: 8.0
       OptionGroupDescription: !Sub ${Prefix}-db-OG
 
@@ -666,22 +666,22 @@ Resources:
                   - "elasticfilesystem:ClientWrite"
                 Resource: !GetAtt EFS.Arn
 
-  SftpUser:
-    Type: AWS::Transfer::User
-    Properties: 
-      HomeDirectory: !Join ["", ["/", !Ref EFS]] 
-      HomeDirectoryType: PATH
-      PosixProfile: 
-          Gid: 9999
-          Uid: 9999
-      Role: !GetAtt SftpRole.Arn
-      ServerId: !GetAtt SftpServer.ServerId
-      SshPublicKeys: 
-        - !Sub ${SshPublicKeysforSFTP}
-      Tags:
-        - Key: Name
-          Value: !Sub ${Prefix}-SftpUser
-      UserName: SftpUser
+  # SftpUser:
+  #   Type: AWS::Transfer::User
+  #   Properties: 
+  #     HomeDirectory: !Join ["", ["/", !Ref EFS]] 
+  #     HomeDirectoryType: PATH
+  #     PosixProfile: 
+  #         Gid: 9999
+  #         Uid: 9999
+  #     Role: !GetAtt SftpRole.Arn
+  #     ServerId: !GetAtt SftpServer.ServerId
+  #     SshPublicKeys: 
+  #       - !Sub ${SshPublicKeysforSFTP}
+  #     Tags:
+  #       - Key: Name
+  #         Value: !Sub ${Prefix}-SftpUser
+  #     UserName: SftpUser
 
 # ------------------------------------------------------------#
 # Outputs
