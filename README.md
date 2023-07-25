@@ -55,3 +55,10 @@ define( 'AS3CF_SETTINGS', serialize( array(
 
 ```
 7.  各プラグイン（HyperDB、W3 Total、WP OffloadMediaを想定）のインストール・有効化・設定して完了
+
+## AutoScaling時にSSM State ManagerからPlaybookを実行する方法の弱点（一応の利点・改善点）
+- Ansibleで設定する量によるが、多すぎると遅い。
+- State ManagerのWaitForSuccessTimeoutSecondsを長くするか、設定しない方が失敗しない。※AS時に失敗するとALBのヘルスチェックに落ちる。
+- 構築時は便利かもしれないが、本番運用でAS時の遅さはよろしくないと思われる。
+- 現実的な運用としては、本構成のようにすべてAnsibleから設定しようとするのではなく、AMIなどでもっと設定を固めておく方がよいと思われる。
+- Ansibleの使い方としては、テスト用に利用、設定変更を試すとき、AMIは変更せずブルーグリーンデプロイ的に設定をまく場合などが現実的か。
