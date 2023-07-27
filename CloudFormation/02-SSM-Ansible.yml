@@ -43,4 +43,4 @@ Resources:
         - Key: tag:webserver
           Values:
             - true
-      WaitForSuccessTimeoutSeconds: 300
+      # WaitForSuccessTimeoutSeconds: 300
