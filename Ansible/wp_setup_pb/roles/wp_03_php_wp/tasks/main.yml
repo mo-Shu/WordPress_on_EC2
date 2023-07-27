@@ -55,8 +55,8 @@
     path: /var/www/html/wordpress.tar.gz
   register: wp_tar
 
-# - debug: 
-#     var: index_php
+- debug: 
+    var: index_php.exists
 
 - name: setup wordpress
   block: 
@@ -72,11 +72,6 @@
         src: "{{ downloaded_wp.dest }}"
         dest: /var/www/html  
         remote_src: yes 
-    - name: download wp
-      template:
-        src: wordpress.tar.gz
-        dest: /tmp/wordpress.tar.gz
-        register: downloaded_wp
     # - name: Unzip WordPress  
     #   unarchive:  
     #     src: /var/www/html/wordpress.tar.gz
