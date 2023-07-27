@@ -290,6 +290,15 @@ Resources:
         - !Ref PrivateSubnet1a
         - !Ref PrivateSubnet1c
 
+# DBClusterParameterGroup Create
+  RDSDBClusterParameterGroup:
+    Type: AWS::RDS::DBClusterParameterGroup 
+    Properties:       
+      Description: !Sub ${Prefix}-db-Cluster-PG
+      Family: aurora-mysql8.0
+      Parameters: 
+        time_zone: Asia/Tokyo
+
 # DBParameterGroup Create
   DBParameterGroup:
     Type: AWS::RDS::DBParameterGroup
@@ -311,6 +320,7 @@ Resources:
     Properties:
       DatabaseName: wordpressdb # in aurora, create database
       DBClusterIdentifier: !Sub ${Prefix}-aurora-db
+      DBClusterParameterGroupName: !Ref RDSDBClusterParameterGroup
       DBSubnetGroupName: !Ref DBSubnetGroup
       Engine: aurora-mysql
       EngineVersion: 8.0.mysql_aurora.3.01.0
