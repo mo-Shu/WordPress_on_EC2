@@ -9,7 +9,7 @@ $wpdb->add_database(array(
 ));
 
 // $wpdb->add_database(array(
-//         'host'     => "{{ ReadEndpoint_Address }}",
+//         'host'     => ReadEndpoint_Address,
 //         'user'     => DB_USER,
 //         'password' => DB_PASSWORD,
 //         'name'     => DB_NAME,

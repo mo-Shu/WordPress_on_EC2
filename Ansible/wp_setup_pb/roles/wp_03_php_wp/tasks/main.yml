@@ -58,7 +58,7 @@
 - debug: 
     var: index_php.exists
 
-- name: setup wordpress
+- name: Install wordpress
   block: 
     - name: download wp
       get_url: 
@@ -72,11 +72,12 @@
         src: "{{ downloaded_wp.dest }}"
         dest: /var/www/html  
         remote_src: yes 
-    # - name: Unzip WordPress  
-    #   unarchive:  
-    #     src: /var/www/html/wordpress.tar.gz
-    #     dest: /var/www/html
-    #     remote_src: yes
+  become: yes
+  when: 
+    - not index_php.stat.exists == true
+
+- name: setup for wordpress
+  block: 
     - name: replace /etc/httpd/conf/httpd.conf
       template:
         src: httpd.conf 
@@ -105,11 +106,7 @@
         group: apache
         mode: '0757'
         recurse: true
-    # - name: remove wp-config.php ?
   become: yes
-  when: 
-    - not index_php.stat.exists == true
-    # - wp_tar.stat.exists == true
 
 # - name: create /var/www/html/wordpress/wp-config.php
 #   template: 
